@@ -904,40 +904,117 @@ async function confirmarExclusao(id){
 }
 
 // ══════════════════════════════════════════════
-// IMPORTAR
+// IMPORTAR — NUBANK
 // ══════════════════════════════════════════════
-function onFileSelected(input){
-  if(input.files&&input.files[0]){
-    document.getElementById('upload-label').textContent='📄 '+input.files[0].name;
+let _importPreview = [];
+
+const REGRAS_CAT = [
+  // ENTRADAS
+  { tipo:'entrada', regex:/transfer.ncia recebida|pix recebido|cr.dito em conta/i,        cat:'Outros' },
+  // SAÍDAS
+  { tipo:'saida',  regex:/aplica..o rdb|rdb/i,                                             cat:'Investimentos' },
+  { tipo:'saida',  regex:/prefeitura|imposto|das|receita federal|tribut/i,                 cat:'Imposto' },
+  { tipo:'saida',  regex:/custo.*(equipe|team)|sal.rio|folha|colaborador/i,                cat:'Custo de Equipe' },
+  { tipo:'saida',  regex:/google|meta ads|facebook ads|tiktok ads|an.ncio|marketing/i,    cat:'Anúncios' },
+  { tipo:'saida',  regex:/curso|mentoria|treinamento|capacita/i,                           cat:'Cursos e Mentorias' },
+  { tipo:'saida',  regex:/c.mera|microfone|equipamento|audiovisual|ilumina/i,              cat:'Equipamento Audiovisual' },
+  { tipo:'saida',  regex:/notion|slack|figma|adobe|github|digital|software|saas|app/i,    cat:'Ferramentas Digitais' },
+  { tipo:'saida',  regex:/portoseg|financiamento|parcela|fatura|boleto/i,                  cat:'Pagamento de Fatura' },
+  { tipo:'saida',  regex:/gonn fundo|fundo|investimento|cdb/i,                             cat:'Investimentos' },
+];
+
+function categorizarNubank(desc, tipo) {
+  for (const r of REGRAS_CAT) {
+    if (r.tipo === tipo && r.regex.test(desc)) return r.cat;
+  }
+  return tipo === 'entrada' ? 'Outros' : 'Outros';
+}
+
+function mesDeData(dataStr) {
+  // dataStr = DD/MM/YYYY
+  const [, m, y] = dataStr.split('/');
+  return `${y}-${m}`;
+}
+
+function onFileSelected(input) {
+  if (input.files && input.files[0]) {
+    document.getElementById('upload-label').textContent = '📄 ' + input.files[0].name;
   }
 }
 
-function simularImport(){
-  const prog=document.getElementById('import-progress');
-  const fill=document.getElementById('import-fill');
-  const status=document.getElementById('import-status');
-  prog.style.display='block'; fill.style.width='0%';
-  status.textContent='Lendo arquivo...';
-  let p=0;
-  const iv=setInterval(()=>{
-    p+=Math.random()*18+5;
-    if(p>=100){p=100;clearInterval(iv);
-      status.textContent='✓ 34 registros importados com sucesso!';
-      const conta=document.getElementById('import-conta').value;
-      const hoje=new Date();
-      const d=`${String(hoje.getDate()).padStart(2,'0')}/${String(hoje.getMonth()+1).padStart(2,'0')}/${hoje.getFullYear()}`;
-      const arquivo=document.getElementById('file-input').files[0]?.name||'extrato.csv';
-      const tbody=document.getElementById('tbody-import');
-      const tr=document.createElement('tr');
-      tr.innerHTML=`<td>${d}</td><td>${arquivo}</td><td>${conta.split('—')[1]?.trim()||conta}</td><td>${Math.floor(Math.random()*20)+15}</td><td><span class="badge verde">✓ Importado</span></td>`;
-      tbody.insertBefore(tr,tbody.firstChild);
-      toast('Extrato importado com sucesso!','sucesso');
-    }
-    fill.style.width=p+'%';
-    if(p<40)status.textContent='Lendo arquivo...';
-    else if(p<70)status.textContent='Processando transações...';
-    else if(p<100)status.textContent='Categorizando lançamentos...';
-  },120);
+async function simularImport() {
+  const fileInput = document.getElementById('file-input');
+  const file = fileInput.files[0];
+  if (!file) { toast('Selecione um arquivo primeiro', 'erro'); return; }
+
+  const text = await file.text();
+  const linhas = text.trim().split('\n').slice(1); // pula cabeçalho
+
+  _importPreview = [];
+  for (const linha of linhas) {
+    if (!linha.trim()) continue;
+    const cols = linha.split(',');
+    if (cols.length < 4) continue;
+    const data = cols[0].trim();
+    const valor = parseFloat(cols[1].trim());
+    const desc = cols.slice(3).join(',').trim().replace(/^"|"$/g,'');
+    if (isNaN(valor) || valor === 0) continue;
+    const tipo = valor > 0 ? 'entrada' : 'saida';
+    const cat = categorizarNubank(desc, tipo);
+    _importPreview.push({ data, valor: Math.abs(valor), tipo, desc, cat, mes: mesDeData(data) });
+  }
+
+  if (!_importPreview.length) { toast('Nenhuma transação encontrada no arquivo', 'erro'); return; }
+
+  // mostra prévia para confirmação
+  const catOpts = [...CAT_ENTRADA, ...CAT_SAIDA].map(c => `<option>${c.n}</option>`).join('');
+  const linhasHtml = _importPreview.map((l, i) => `
+    <tr>
+      <td style="white-space:nowrap">${l.data}</td>
+      <td style="font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${l.desc}">${l.desc}</td>
+      <td><span class="badge ${l.tipo}">${l.tipo==='entrada'?'Entrada':'Saída'}</span></td>
+      <td class="${l.tipo==='entrada'?'ve':'vs'}">${l.tipo==='saida'?'- ':'+ '}${fmt(l.valor)}</td>
+      <td><select class="fi" style="font-size:11px;padding:4px 6px;" onchange="_importPreview[${i}].cat=this.value">
+        ${[...CAT_ENTRADA,...CAT_SAIDA].map(c=>`<option${c.n===l.cat?' selected':''}>${c.n}</option>`).join('')}
+      </select></td>
+    </tr>`).join('');
+
+  abrirModal(`Prévia — ${_importPreview.length} transações do Nubank`,
+    `<div style="max-height:55vh;overflow-y:auto;">
+      <table style="width:100%;font-size:12px;">
+        <thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Categoria</th></tr></thead>
+        <tbody>${linhasHtml}</tbody>
+      </table>
+    </div>`,
+    `<button class="btn bs" onclick="fecharModal()">Cancelar</button>
+     <button class="btn bp" onclick="confirmarImportNubank('${file.name}')">Salvar ${_importPreview.length} lançamentos</button>`
+  );
+}
+
+async function confirmarImportNubank(nomeArquivo) {
+  fecharModal();
+  toast('Salvando lançamentos...', '');
+  let salvos = 0;
+  for (const l of _importPreview) {
+    const { error } = await db.from('lancamentos').insert({
+      tipo: l.tipo,
+      descricao: l.desc,
+      categoria: l.cat,
+      data: l.data.split('/').reverse().join('-'),
+      mes: l.mes,
+      valor: l.valor
+    });
+    if (!error) salvos++;
+  }
+  // registra no histórico
+  const hoje = new Date();
+  const d = `${String(hoje.getDate()).padStart(2,'0')}/${String(hoje.getMonth()+1).padStart(2,'0')}/${hoje.getFullYear()}`;
+  const tbody = document.getElementById('tbody-import');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${d}</td><td>${nomeArquivo}</td><td>Nubank</td><td>${salvos}</td><td><span class="badge verde">✓ Importado</span></td>`;
+  tbody.insertBefore(tr, tbody.firstChild);
+  await carregarLancamentos();
+  toast(`✓ ${salvos} lançamentos importados com sucesso!`, 'sucesso');
 }
 
 // ══════════════════════════════════════════════
