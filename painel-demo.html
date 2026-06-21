@@ -951,17 +951,23 @@ async function simularImport() {
   const linhas = text.trim().split('\n').slice(1); // pula cabeçalho
 
   _importPreview = [];
+  // busca identificadores já existentes no banco
+  const { data: existentes } = await db.from('lancamentos').select('identificador').not('identificador','is',null);
+  const idsExistentes = new Set((existentes||[]).map(x=>x.identificador));
+
   for (const linha of linhas) {
     if (!linha.trim()) continue;
     const cols = linha.split(',');
     if (cols.length < 4) continue;
     const data = cols[0].trim();
     const valor = parseFloat(cols[1].trim());
+    const identificador = cols[2].trim();
     const desc = cols.slice(3).join(',').trim().replace(/^"|"$/g,'');
     if (isNaN(valor) || valor === 0) continue;
+    if (idsExistentes.has(identificador)) continue; // pula duplicata
     const tipo = valor > 0 ? 'entrada' : 'saida';
     const cat = categorizarNubank(desc, tipo);
-    _importPreview.push({ data, valor: Math.abs(valor), tipo, desc, cat, mes: mesDeData(data) });
+    _importPreview.push({ data, valor: Math.abs(valor), tipo, desc, cat, mes: mesDeData(data), identificador });
   }
 
   if (!_importPreview.length) { toast('Nenhuma transação encontrada no arquivo', 'erro'); return; }
@@ -1002,7 +1008,8 @@ async function confirmarImportNubank(nomeArquivo) {
       categoria: l.cat,
       data: l.data.split('/').reverse().join('-'),
       mes: l.mes,
-      valor: l.valor
+      valor: l.valor,
+      identificador: l.identificador
     });
     if (!error) salvos++;
   }
