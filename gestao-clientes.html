@@ -193,9 +193,66 @@
   .config-add-row { display: flex; gap: 10px; align-items: center; }
   .config-add-row .form-input { flex: 1; }
   .notif { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--red); margin-left: 6px; vertical-align: middle; }
+
+  /* ── LOGIN ── */
+  .login-overlay {
+    display: none; position: fixed; inset: 0; z-index: 99999;
+    background: var(--bg);
+    align-items: center; justify-content: center;
+  }
+  .login-overlay.show { display: flex; }
+  .login-box {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 40px 44px; width: 400px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.6);
+  }
+  .login-logo { font-size: 32px; margin-bottom: 6px; text-align: center; }
+  .login-title { font-size: 22px; font-weight: 800; text-align: center; margin-bottom: 4px; }
+  .login-sub { font-size: 13px; color: var(--text2); text-align: center; margin-bottom: 32px; }
+  .login-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .login-label { font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: .6px; }
+  .login-input {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    border-radius: 10px; padding: 12px 14px; font-size: 14px; outline: none;
+    transition: border .18s; font-family: inherit; width: 100%;
+  }
+  .login-input:focus { border-color: var(--accent); }
+  .login-btn {
+    width: 100%; padding: 13px; border-radius: 10px; font-size: 14px; font-weight: 700;
+    background: var(--accent); color: #fff; border: none; cursor: pointer;
+    margin-top: 8px; transition: background .18s;
+  }
+  .login-btn:hover { background: #5a52e0; }
+  .login-btn:disabled { opacity: .6; cursor: not-allowed; }
+  .login-error { font-size: 12px; color: var(--red); text-align: center; margin-top: 12px; min-height: 18px; }
+  .app-wrap { display: none; }
+  .app-wrap.show { display: contents; }
 </style>
 </head>
 <body>
+
+<!-- LOGIN -->
+<div class="login-overlay show" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-logo">💪</div>
+    <div class="login-title">ConsultoriaPRO</div>
+    <div class="login-sub">Painel de Gestão de Clientes</div>
+    <div class="login-group">
+      <label class="login-label">Email</label>
+      <input class="login-input" id="login-email" type="email" placeholder="seu@email.com" autocomplete="username">
+    </div>
+    <div class="login-group">
+      <label class="login-label">Senha</label>
+      <input class="login-input" id="login-senha" type="password" placeholder="••••••••" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter') fazerLogin()">
+    </div>
+    <button class="login-btn" id="loginBtn" onclick="fazerLogin()">Entrar</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- APP (oculto até login) -->
+<div class="app-wrap" id="appWrap">
 
 <!-- Loading -->
 <div class="loading-overlay" id="loadingOverlay">
@@ -219,13 +276,16 @@
   <div class="nav-section" style="margin-top:12px">Sistema</div>
   <div class="nav-item" onclick="showView('config')"><span class="icon">⚙️</span> Configurações</div>
   <div class="sidebar-footer">
-    <div class="user">
+    <div class="user" style="margin-bottom:12px">
       <div class="avatar">C</div>
       <div>
         <div style="font-weight:600;font-size:13px;color:var(--text)">ConsultoriaPRO</div>
-        <div style="font-size:11px">Painel de Gestão</div>
+        <div style="font-size:11px" id="userEmail">Painel de Gestão</div>
       </div>
     </div>
+    <button onclick="fazerLogout()" style="width:100%;padding:8px;border-radius:8px;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.25);color:#ff6b6b;font-size:12px;font-weight:600;cursor:pointer;transition:all .18s;" onmouseover="this.style.background='rgba(255,107,107,.2)'" onmouseout="this.style.background='rgba(255,107,107,.1)'">
+      🚪 Sair
+    </button>
   </div>
 </nav>
 
@@ -421,6 +481,8 @@
   </div>
 
 </main>
+
+</div><!-- /app-wrap -->
 
 <!-- MODAL: CICLOS ENCERRADOS -->
 <div class="modal-overlay" id="modalEncerradosOverlay" onclick="if(event.target.id==='modalEncerradosOverlay')this.classList.remove('open')">
@@ -1276,12 +1338,56 @@ function renderAll() {
 }
 
 // ══════════════════════════════════════════════
-// INIT
+// AUTH
 // ══════════════════════════════════════════════
-async function init() {
+async function fazerLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const senha = document.getElementById('login-senha').value;
+  const btn   = document.getElementById('loginBtn');
+  const erro  = document.getElementById('loginError');
+
+  erro.textContent = '';
+  if (!email || !senha) { erro.textContent = 'Preencha email e senha.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Entrando...';
+
+  const { data, error } = await db.auth.signInWithPassword({ email, password: senha });
+
+  btn.disabled = false;
+  btn.textContent = 'Entrar';
+
+  if (error) {
+    erro.textContent = 'Email ou senha incorretos.';
+    return;
+  }
+
+  mostrarApp(data.user);
+  await carregarDados();
+}
+
+async function fazerLogout() {
+  await db.auth.signOut();
+  document.getElementById('appWrap').classList.remove('show');
+  document.getElementById('loginOverlay').classList.add('show');
+  document.getElementById('login-senha').value = '';
+  clientes = [];
+}
+
+function mostrarApp(user) {
+  document.getElementById('loginOverlay').classList.remove('show');
+  document.getElementById('appWrap').classList.add('show');
+  if (user?.email) {
+    document.getElementById('userEmail').textContent = user.email;
+  }
+}
+
+// ══════════════════════════════════════════════
+// CARREGAR DADOS
+// ══════════════════════════════════════════════
+async function carregarDados() {
   setLoading(true);
   try {
-    // Carregar config
     const { data: cfgData } = await db.from('gc_config').select('*');
     if (cfgData) {
       cfgData.forEach(row => {
@@ -1290,12 +1396,9 @@ async function init() {
         if (row.chave === 'periodos') try { config.periodos = JSON.parse(row.valor); } catch(e) {}
       });
     }
-
-    // Carregar clientes
     const { data: clientesData, error } = await db.from('gc_clientes').select('*').order('created_at', { ascending: false });
     if (error) throw error;
     clientes = clientesData || [];
-
     atualizarSelectPrograma();
     atualizarSelectPeriodo();
     renderConfig();
@@ -1308,7 +1411,16 @@ async function init() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  const { data: { session } } = await db.auth.getSession();
+  if (session?.user) {
+    mostrarApp(session.user);
+    await carregarDados();
+  }
+});
 </script>
 </body>
 </html>
