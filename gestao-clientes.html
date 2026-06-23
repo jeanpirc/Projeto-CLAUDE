@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestão de Clientes</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0f1117; --bg2: #1a1d27; --bg3: #22263a; --border: #2e3350;
+    --accent: #6c63ff; --accent2: #00d4aa; --accent3: #ff6b6b; --accent4: #ffd93d;
+    --text: #e8eaf0; --text2: #8b92b0;
+    --green: #00d4aa; --red: #ff6b6b; --yellow: #ffd93d;
+    --blue: #4d9fff; --purple: #a78bfa; --orange: #fb923c;
+    --radius: 14px; --shadow: 0 4px 24px rgba(0,0,0,0.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  .sidebar {
+    position: fixed; top: 0; left: 0; width: 230px; height: 100vh;
+    background: var(--bg2); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 24px 0; z-index: 100;
+  }
+  .sidebar-logo { padding: 0 20px 28px; font-size: 17px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 10px; }
+  .sidebar-logo span { font-size: 22px; }
+  .nav-section { padding: 0 12px 8px; font-size: 10px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-top: 8px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 20px; cursor: pointer;
+    font-size: 13.5px; color: var(--text2); border-radius: 8px; margin: 1px 8px; transition: all .18s;
+  }
+  .nav-item:hover, .nav-item.active { background: rgba(108,99,255,.15); color: var(--accent); }
+  .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+  .sidebar-footer { margin-top: auto; padding: 16px 20px; font-size: 12px; color: var(--text2); border-top: 1px solid var(--border); }
+  .sidebar-footer .avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; margin-right: 10px; }
+  .sidebar-footer .user { display: flex; align-items: center; }
+
+  .main { margin-left: 230px; padding: 32px 36px; max-width: 1400px; }
+  .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
+  .page-title { font-size: 26px; font-weight: 700; }
+  .page-subtitle { color: var(--text2); font-size: 13.5px; margin-top: 4px; }
+  .header-actions { display: flex; gap: 10px; }
+  .btn { padding: 9px 18px; border-radius: 9px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all .18s; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #5a52e0; }
+  .btn-outline { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; margin-bottom: 28px; }
+  .kpi-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; position: relative; overflow: hidden; transition: transform .18s; }
+  .kpi-card:hover { transform: translateY(-2px); }
+  .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; }
+  .kpi-card.green::before { background: var(--green); }
+  .kpi-card.purple::before { background: var(--purple); }
+  .kpi-card.yellow::before { background: var(--yellow); }
+  .kpi-card.red::before { background: var(--red); }
+  .kpi-card.blue::before { background: var(--blue); }
+  .kpi-card.orange::before { background: var(--orange); }
+  .kpi-label { font-size: 11.5px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 10px; }
+  .kpi-value { font-size: 32px; font-weight: 800; line-height: 1; }
+  .kpi-value.green { color: var(--green); } .kpi-value.purple { color: var(--purple); }
+  .kpi-value.yellow { color: var(--yellow); } .kpi-value.red { color: var(--red); }
+  .kpi-value.blue { color: var(--blue); } .kpi-value.orange { color: var(--orange); }
+  .kpi-sub { font-size: 11.5px; color: var(--text2); margin-top: 6px; }
+  .kpi-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; margin-top: 8px; }
+  .kpi-badge.up { background: rgba(0,212,170,.15); color: var(--green); }
+  .kpi-badge.down { background: rgba(255,107,107,.15); color: var(--red); }
+  .kpi-card.clickable { cursor: pointer; }
+  .kpi-card.clickable:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(108,99,255,.2); }
+
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-bottom: 28px; }
+  .chart-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+  .chart-card.wide { grid-column: span 2; }
+  .chart-title { font-size: 13px; font-weight: 700; margin-bottom: 18px; color: var(--text); }
+  .chart-title span { color: var(--text2); font-weight: 400; font-size: 12px; margin-left: 6px; }
+  .chart-wrap { position: relative; height: 200px; }
+
+  .alerts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 28px; }
+  .alert-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+  .alert-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+  .alert-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg3); transition: all .18s; cursor: pointer; }
+  .alert-item:hover { border-color: var(--accent); }
+  .alert-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+  .alert-info { flex: 1; }
+  .alert-name { font-size: 13px; font-weight: 600; }
+  .alert-detail { font-size: 11.5px; color: var(--text2); margin-top: 2px; }
+  .alert-tag { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; flex-shrink: 0; }
+
+  .contratos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 28px; }
+  .contrato-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; transition: all .2s; cursor: pointer; display: flex; flex-direction: column; }
+  .contrato-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,.4); }
+  .card-header { padding: 18px 20px 14px; display: flex; align-items: center; gap: 14px; position: relative; }
+  .card-header-bg { position: absolute; inset: 0; opacity: .08; }
+  .contrato-avatar { width: 46px; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 800; flex-shrink: 0; position: relative; z-index: 1; }
+  .card-header-info { flex: 1; position: relative; z-index: 1; min-width: 0; }
+  .contrato-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .contrato-prog { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .card-dias-badge { position: relative; z-index: 1; flex-shrink: 0; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 20px; text-align: center; line-height: 1.3; }
+  .card-progress { padding: 0 20px 14px; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text2); margin-bottom: 6px; }
+  .progress-bar { height: 5px; background: var(--bg3); border-radius: 10px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 10px; transition: width .6s; }
+  .card-metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .card-metric { padding: 11px 14px; text-align: center; border-right: 1px solid var(--border); }
+  .card-metric:last-child { border-right: none; }
+  .card-metric-label { font-size: 9.5px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; }
+  .card-metric-val { font-size: 14px; font-weight: 800; margin-top: 2px; }
+  .card-footer { padding: 12px 18px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { font-size: 10.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; display: inline-flex; align-items: center; gap: 4px; }
+  .contrato-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 14px; }
+  .contrato-stat { padding: 8px 10px; background: var(--bg3); border-radius: 8px; }
+  .contrato-stat-label { font-size: 10px; color: var(--text2); font-weight: 600; text-transform: uppercase; }
+  .contrato-stat-val { font-size: 13px; font-weight: 700; margin-top: 2px; }
+
+  .table-section { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 28px; }
+  .table-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--border); }
+  .table-title { font-size: 14px; font-weight: 700; }
+  .table-filters { display: flex; gap: 8px; }
+  .filter-btn { padding: 5px 13px; border-radius: 20px; font-size: 11.5px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text2); transition: all .15s; }
+  .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .filter-btn:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { padding: 12px 16px; font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; text-align: left; background: var(--bg3); border-bottom: 1px solid var(--border); }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .14s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--bg3); }
+  tbody td { padding: 13px 16px; font-size: 13px; }
+  .td-name { font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .td-avatar { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+  .sinal-verde { background: rgba(0,212,170,.12); color: var(--green); }
+  .sinal-alert { background: rgba(255,107,107,.12); color: var(--red); }
+  .foto-badge { font-size: 11px; padding: 3px 8px; border-radius: 12px; font-weight: 600; }
+  .status-select { font-family: inherit; appearance: none; -webkit-appearance: none; text-align: center; }
+
+  .search-wrap { position: relative; }
+  .search-input { background: var(--bg3); border: 1px solid var(--border); color: var(--text); border-radius: 9px; padding: 8px 14px 8px 36px; font-size: 13px; width: 220px; outline: none; transition: border .18s; }
+  .search-input:focus { border-color: var(--accent); }
+  .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text2); font-size: 14px; }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 999; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 18px; padding: 32px; width: 560px; max-height: 90vh; overflow-y: auto; box-shadow: 0 24px 60px rgba(0,0,0,.6); }
+  .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; }
+  .modal-close { cursor: pointer; color: var(--text2); font-size: 20px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: span 2; }
+  .form-label { font-size: 11.5px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; }
+  .form-input, .form-select, .form-textarea { background: var(--bg3); border: 1px solid var(--border); color: var(--text); border-radius: 9px; padding: 10px 13px; font-size: 13px; outline: none; transition: border .18s; font-family: inherit; }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--accent); }
+  .form-textarea { resize: vertical; min-height: 80px; }
+  .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+
+  .empty-state { text-align: center; padding: 48px; color: var(--text2); }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+
+  /* Loading */
+  .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(15,17,23,.8); z-index: 9999; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
+  .loading-overlay.show { display: flex; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { color: var(--text2); font-size: 13px; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 18px; font-size: 13px; font-weight: 600; z-index: 99999; display: none; gap: 8px; align-items: center; box-shadow: var(--shadow); }
+  .toast.show { display: flex; }
+  .toast.success { border-color: var(--green); color: var(--green); }
+  .toast.error { border-color: var(--red); color: var(--red); }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 1200px) { .charts-row { grid-template-columns: 1fr 1fr; } .chart-card.wide { grid-column: span 2; } }
+  @media (max-width: 900px) { .sidebar { display: none; } .main { margin-left: 0; padding: 20px; } .charts-row { grid-template-columns: 1fr; } .alerts-row { grid-template-columns: 1fr; } }
+
+  .config-section { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 26px; margin-bottom: 20px; }
+  .config-section-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .config-section-desc { font-size: 12.5px; color: var(--text2); margin-bottom: 18px; line-height: 1.5; }
+  .semanas-toggle { display: flex; gap: 10px; margin-bottom: 14px; }
+  .semanas-btn { padding: 10px 28px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; border: 2px solid var(--border); background: var(--bg3); color: var(--text2); transition: all .18s; }
+  .semanas-btn.active { border-color: var(--accent); background: rgba(108,99,255,.15); color: var(--accent); }
+  .config-info { font-size: 12px; color: var(--text2); padding: 10px 14px; background: var(--bg3); border-radius: 8px; }
+  .config-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; min-height: 36px; }
+  .config-tag { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); font-size: 13px; font-weight: 600; }
+  .config-tag-del { cursor: pointer; color: var(--text2); font-size: 14px; line-height: 1; transition: color .15s; }
+  .config-tag-del:hover { color: var(--red); }
+  .config-add-row { display: flex; gap: 10px; align-items: center; }
+  .config-add-row .form-input { flex: 1; }
+  .notif { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--red); margin-left: 6px; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Carregando dados...</div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo"><span>💪</span> ConsultoriaPRO</div>
+  <div class="nav-section">Principal</div>
+  <div class="nav-item active" onclick="showView('dashboard')"><span class="icon">📊</span> Dashboard</div>
+  <div class="nav-item" onclick="showView('clientes')"><span class="icon">✅</span> Clientes Ativos</div>
+  <div class="nav-item" onclick="showView('tabela')"><span class="icon">📋</span> Todos os Registros</div>
+  <div class="nav-section" style="margin-top:12px">Análises</div>
+  <div class="nav-item" onclick="showView('alertas')"><span class="icon">⚠️</span> Alertas<span class="notif" id="notifDot" style="display:none"></span></div>
+  <div class="nav-item" onclick="showView('renovacoes')"><span class="icon">🔄</span> Renovações</div>
+  <div class="nav-section" style="margin-top:12px">Sistema</div>
+  <div class="nav-item" onclick="showView('config')"><span class="icon">⚙️</span> Configurações</div>
+  <div class="sidebar-footer">
+    <div class="user">
+      <div class="avatar">C</div>
+      <div>
+        <div style="font-weight:600;font-size:13px;color:var(--text)">ConsultoriaPRO</div>
+        <div style="font-size:11px">Painel de Gestão</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- DASHBOARD -->
+  <div id="view-dashboard" class="view active">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Dashboard Geral</div>
+        <div class="page-subtitle" id="dashSubtitle">Visão completa da sua consultoria</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-primary" onclick="openModal()">+ Novo Cliente</button>
+      </div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card green">
+        <div class="kpi-label">Clientes Ativos</div>
+        <div class="kpi-value green" id="kpiAtivos">—</div>
+        <div class="kpi-badge up" id="kpiAtivosTotal"></div>
+      </div>
+      <div class="kpi-card yellow">
+        <div class="kpi-label">Faturamento Mensal</div>
+        <div class="kpi-value yellow" style="font-size:24px" id="kpiFaturamento">—</div>
+        <div class="kpi-sub">soma dos ativos</div>
+      </div>
+      <div class="kpi-card red clickable" onclick="abrirModalRenovacoes()" id="kpiRenovacoesCard">
+        <div class="kpi-label">🔄 Renovações Próximas</div>
+        <div class="kpi-value red" id="kpiRenovacoesVal">—</div>
+        <div class="kpi-sub">vencendo em até 30 dias</div>
+      </div>
+      <div class="kpi-card orange clickable" onclick="abrirModalEncerrados()">
+        <div class="kpi-label">📁 Ciclos Encerrados</div>
+        <div class="kpi-value orange" id="kpiEncerradosVal">—</div>
+        <div class="kpi-sub">total histórico · clique para ver</div>
+      </div>
+      <div class="kpi-card purple clickable" onclick="abrirModalProtocolo()" id="kpiProtocoloCard">
+        <div class="kpi-label">🔁 Atualizar Protocolo</div>
+        <div class="kpi-value purple" id="kpiProtocoloVal">—</div>
+        <div class="kpi-sub">alunos esta semana</div>
+      </div>
+    </div>
+    <div class="charts-row">
+      <div class="chart-card wide">
+        <div class="chart-title">Distribuição por Programa <span>clientes ativos</span></div>
+        <div class="chart-wrap"><canvas id="chartProgramasBar"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Por Programa <span>pizza</span></div>
+        <div class="chart-wrap"><canvas id="chartProgramas"></canvas></div>
+      </div>
+    </div>
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Contratos por Duração <span>ativos</span></div>
+        <div class="chart-wrap"><canvas id="chartDuracao"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Status dos Treinos <span>clientes ativos</span></div>
+        <div class="chart-wrap"><canvas id="chartTreinos"></canvas></div>
+      </div>
+    </div>
+    <div class="alerts-row">
+      <div class="alert-card">
+        <div class="chart-title" style="margin:0">⚠️ Sinais de Alerta <span style="color:var(--red)" id="alertCount"></span></div>
+        <div class="alert-list" id="alertList"></div>
+      </div>
+      <div class="alert-card">
+        <div class="chart-title" style="margin:0">🌿 Sinais Verdes <span style="color:var(--green)" id="greenCount"></span></div>
+        <div class="alert-list" id="greenList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLIENTES ATIVOS -->
+  <div id="view-clientes" class="view">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Clientes Ativos</div>
+        <div class="page-subtitle" id="clientesSubtitle">— clientes em acompanhamento</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-primary" onclick="openModal()">+ Novo Cliente</button>
+      </div>
+    </div>
+    <div class="contratos-grid" id="clientesGrid"></div>
+  </div>
+
+  <!-- TODOS OS REGISTROS -->
+  <div id="view-tabela" class="view">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Todos os Registros</div>
+        <div class="page-subtitle">Filtre por status: Ativos, Congelados, Encerrados ou Cancelados</div>
+      </div>
+      <div class="header-actions">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input class="search-input" type="text" placeholder="Buscar por nome..." oninput="filterTable(this.value)">
+        </div>
+        <button class="btn btn-primary" onclick="openModal()">+ Novo</button>
+      </div>
+    </div>
+    <div class="table-section">
+      <div class="table-header">
+        <div class="table-title">Registros</div>
+        <div class="table-filters" id="tableFilters"></div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Nome</th><th>Status</th><th>Programa</th><th>Protocolo</th>
+          <th>Contrato</th><th>Treino</th><th>Fotos</th><th>Sinal</th><th>Valor</th>
+        </tr></thead>
+        <tbody id="mainTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ALERTAS -->
+  <div id="view-alertas" class="view">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Central de Alertas</div>
+        <div class="page-subtitle">Clientes que precisam de atenção agora</div>
+      </div>
+    </div>
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi-card red"><div class="kpi-label">Não respondem</div><div class="kpi-value red" id="alertNaoResp">0</div></div>
+      <div class="kpi-card yellow"><div class="kpi-label">Inconsistentes</div><div class="kpi-value yellow" id="alertInconsist">0</div></div>
+      <div class="kpi-card orange"><div class="kpi-label">Outros alertas</div><div class="kpi-value orange" id="alertOutros">0</div></div>
+    </div>
+    <div class="table-section">
+      <div class="table-header"><div class="table-title">⚠️ Ação Necessária</div></div>
+      <table>
+        <thead><tr>
+          <th>Cliente</th><th>Alerta</th><th>Programa</th><th>Protocolo</th>
+          <th>Treino</th><th>Fotos</th><th>Dias no Contrato</th><th>Ação</th>
+        </tr></thead>
+        <tbody id="alertasTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- RENOVAÇÕES -->
+  <div id="view-renovacoes" class="view">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Renovações</div>
+        <div class="page-subtitle">Contratos próximos do vencimento</div>
+      </div>
+    </div>
+    <div class="contratos-grid" id="renovacoesGrid"></div>
+  </div>
+
+  <!-- CONFIGURAÇÕES -->
+  <div id="view-config" class="view">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Configurações</div>
+        <div class="page-subtitle">Personalize protocolos, planos e períodos de contrato</div>
+      </div>
+    </div>
+    <div class="config-section">
+      <div class="config-section-title">📋 Duração de cada Protocolo</div>
+      <div class="config-section-desc">Quantas semanas dura cada protocolo antes de ser trocado?</div>
+      <div class="semanas-toggle" id="semanasToggle">
+        <button class="semanas-btn" onclick="setSemanas(4,this)">4 semanas</button>
+        <button class="semanas-btn" onclick="setSemanas(8,this)">8 semanas</button>
+        <button class="semanas-btn" onclick="setSemanas(12,this)">12 semanas</button>
+      </div>
+      <div class="config-info" id="configInfo"></div>
+    </div>
+    <div class="config-section">
+      <div class="config-section-title">💼 Planos / Programas</div>
+      <div class="config-section-desc">Esses planos aparecem no cadastro de novos clientes.</div>
+      <div class="config-list" id="programasList"></div>
+      <div class="config-add-row">
+        <input id="novoPrograma" class="form-input" type="text" placeholder="Nome do novo plano">
+        <button class="btn btn-primary" onclick="adicionarPrograma()">+ Adicionar</button>
+      </div>
+    </div>
+    <div class="config-section">
+      <div class="config-section-title">📅 Períodos de Contrato</div>
+      <div class="config-section-desc">Esses períodos aparecem no cadastro de novos clientes.</div>
+      <div class="config-list" id="periodosList"></div>
+      <div class="config-add-row">
+        <input id="novoPeriodo" class="form-input" type="text" placeholder="Nome do período">
+        <button class="btn btn-primary" onclick="adicionarPeriodo()">+ Adicionar</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- MODAL: CICLOS ENCERRADOS -->
+<div class="modal-overlay" id="modalEncerradosOverlay" onclick="if(event.target.id==='modalEncerradosOverlay')this.classList.remove('open')">
+  <div class="modal" style="width:680px">
+    <div class="modal-title">
+      <span>📁 Clientes com Ciclo Encerrado</span>
+      <span class="modal-close" onclick="document.getElementById('modalEncerradosOverlay').classList.remove('open')">✕</span>
+    </div>
+    <p style="color:var(--text2);font-size:12.5px;margin-bottom:16px">Clique em <strong style="color:var(--accent)">Reativar</strong> para gerar uma mensagem de reconquista.</p>
+    <div id="modalEncerradosBody"></div>
+  </div>
+</div>
+
+<!-- MODAL: REATIVAÇÃO -->
+<div class="modal-overlay" id="modalReativacaoOverlay" onclick="if(event.target.id==='modalReativacaoOverlay')this.classList.remove('open')">
+  <div class="modal" style="width:580px">
+    <div class="modal-title">
+      <span>💬 Mensagem de Reativação</span>
+      <span class="modal-close" onclick="document.getElementById('modalReativacaoOverlay').classList.remove('open')">✕</span>
+    </div>
+    <div class="form-group full" style="margin-bottom:16px">
+      <label class="form-label">Para</label>
+      <input id="reat-nome" class="form-input" type="text" readonly style="color:var(--accent);font-weight:600">
+    </div>
+    <div class="form-group full" style="margin-bottom:20px">
+      <label class="form-label">Mensagem</label>
+      <textarea id="reat-msg" class="form-textarea" style="min-height:200px;line-height:1.7"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="document.getElementById('modalReativacaoOverlay').classList.remove('open')">Fechar</button>
+      <button class="btn btn-primary" onclick="copiarMensagem()">📋 Copiar</button>
+      <button class="btn btn-primary" style="background:#25d366" onclick="abrirWhatsapp()">📱 WhatsApp</button>
+    </div>
+    <div id="copiadoFeedback" style="display:none;text-align:center;margin-top:12px;font-size:12px;color:var(--green);font-weight:600">✅ Mensagem copiada!</div>
+  </div>
+</div>
+
+<!-- MODAL: RENOVAÇÕES -->
+<div class="modal-overlay" id="modalRenovacoesOverlay" onclick="if(event.target.id==='modalRenovacoesOverlay')this.classList.remove('open')">
+  <div class="modal" style="width:680px">
+    <div class="modal-title">
+      <span>🔄 Contratos vencendo nos próximos 30 dias</span>
+      <span class="modal-close" onclick="document.getElementById('modalRenovacoesOverlay').classList.remove('open')">✕</span>
+    </div>
+    <div id="modalRenovacoesBody"></div>
+  </div>
+</div>
+
+<!-- MODAL: PROTOCOLO -->
+<div class="modal-overlay" id="modalProtocoloOverlay" onclick="if(event.target.id==='modalProtocoloOverlay')this.classList.remove('open')">
+  <div class="modal" style="width:640px">
+    <div class="modal-title">
+      <span>🔁 Atualizações de Protocolo desta Semana</span>
+      <span class="modal-close" onclick="document.getElementById('modalProtocoloOverlay').classList.remove('open')">✕</span>
+    </div>
+    <div id="modalProtocoloBody"></div>
+  </div>
+</div>
+
+<!-- MODAL: NOVO/EDITAR CLIENTE -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target.id==='modalOverlay')closeModal()">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modalTitleText">+ Novo Cadastro</span>
+      <span class="modal-close" onclick="closeModal()">✕</span>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label class="form-label">Nome</label><input id="f-nome" class="form-input" type="text" placeholder="Nome completo"></div>
+      <div class="form-group"><label class="form-label">Whatsapp</label><input id="f-whatsapp" class="form-input" type="text" placeholder="(11) 99999-9999"></div>
+      <div class="form-group"><label class="form-label">Instagram</label><input id="f-instagram" class="form-input" type="text" placeholder="@usuario"></div>
+      <div class="form-group"><label class="form-label">Data de Nascimento</label><input id="f-nascimento" class="form-input" type="date"></div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select id="f-status" class="form-select">
+          <option>Ativo</option><option>Congelado</option><option>Encerrado</option><option>Cancelado</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Programa Contratado</label><select id="f-programa" class="form-select"></select></div>
+      <div class="form-group"><label class="form-label">Tempo Contratado</label><select id="f-contrato" class="form-select"></select></div>
+      <div class="form-group"><label class="form-label">Valor do Programa (R$)</label><input id="f-valor" class="form-input" type="number" placeholder="0"></div>
+      <div class="form-group"><label class="form-label">Início do Contrato</label><input id="f-inicio" class="form-input" type="date"></div>
+      <div class="form-group"><label class="form-label">Final do Contrato</label><input id="f-fim" class="form-input" type="date"></div>
+      <div class="form-group">
+        <label class="form-label">Protocolo Atual</label>
+        <select id="f-protocolo" class="form-select">
+          <option>Protocolo 01</option><option>Protocolo 02</option><option>Protocolo 03</option>
+          <option>Protocolo 04</option><option>Protocolo 05</option><option>Protocolo 06</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Treino</label>
+        <select id="f-treino" class="form-select">
+          <option>Em andamento</option><option>Em dia</option><option>Desatualizado</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fotos</label>
+        <select id="f-fotos" class="form-select">
+          <option>Em dia</option><option>Pendentes</option><option>Antigas</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Sinais Verdes</label>
+        <select id="f-sinalVerde" class="form-select">
+          <option value="">—</option><option>Motivado</option><option>Resultado Alto</option><option>Comunicativo</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Sinais de Alerta</label>
+        <select id="f-sinalAlerta" class="form-select">
+          <option value="">—</option><option>Depressão</option><option>Não iniciou</option>
+          <option>Impaciente</option><option>Inconsistente</option><option>Não responde</option>
+        </select>
+      </div>
+      <div class="form-group full"><label class="form-label">Observações</label><textarea id="f-obs" class="form-textarea" placeholder="Notas, objetivos..."></textarea></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" id="btnSalvar" onclick="salvarCliente()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// SUPABASE
+// ══════════════════════════════════════════════
+const SUPA_URL = 'https://wxzkqxbmstbzmxynnvhv.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind4emtxeGJtc3Riem14eW5udmh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2MDE0NjYsImV4cCI6MjA5NjE3NzQ2Nn0.N8RXvK1Eh6X-muI3ynyqgGcKcFybnw4zZUtjCwibIV8';
+const db = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+// ══════════════════════════════════════════════
+// ESTADO GLOBAL
+// ══════════════════════════════════════════════
+let clientes = [];
+let config = { semanasProtocolo: 4, programas: [], periodos: [] };
+let modalClienteId = null;
+let charts = {};
+let activeFilter = 'Todos';
+let reativacaoWhatsapp = '';
+
+// ══════════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════════
+const CORES = [
+  ['#6c63ff','#1a1730'],['#00d4aa','#00261f'],['#ff6b6b','#2e0000'],
+  ['#ffd93d','#2e2600'],['#4d9fff','#001e38'],['#fb923c','#2e1200'],
+  ['#a78bfa','#1e1038'],['#f472b6','#2e0018'],['#34d399','#002e1a'],
+  ['#60a5fa','#001e38'],['#facc15','#2e2600'],['#f87171','#2e0000'],
+  ['#818cf8','#1a1730'],['#2dd4bf','#002e2a'],['#c084fc','#1e0038'],
+  ['#fb7185','#2e0010'],['#a3e635','#1a2600'],['#38bdf8','#001e2e'],
+];
+function cor(i) { return CORES[i % CORES.length]; }
+function initials(n) { return (n||'?').split(' ').map(p => p[0]).slice(0,2).join('').toUpperCase(); }
+
+const STATUS_COR = {
+  'Ativo':     { bg: 'rgba(0,212,170,.15)',   c: '#00d4aa' },
+  'Congelado': { bg: 'rgba(77,159,255,.15)',  c: '#4d9fff' },
+  'Encerrado': { bg: 'rgba(139,146,176,.15)', c: '#8b92b0' },
+  'Cancelado': { bg: 'rgba(255,107,107,.15)', c: '#ff6b6b' },
+};
+
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = (type === 'success' ? '✅ ' : '❌ ') + msg;
+  t.className = 'toast show ' + type;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function setLoading(show) {
+  document.getElementById('loadingOverlay').classList.toggle('show', show);
+}
+
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('view-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(i => {
+    if (i.getAttribute('onclick')?.includes("'" + id + "'")) i.classList.add('active');
+  });
+}
+
+// ══════════════════════════════════════════════
+// HELPERS DE DATA / PROTOCOLO
+// ══════════════════════════════════════════════
+function diasRestantes(fim) {
+  if (!fim) return 9999;
+  return Math.ceil((new Date(fim) - new Date()) / 86400000);
+}
+function diasContrato(inicio) {
+  if (!inicio) return 0;
+  return Math.ceil((new Date() - new Date(inicio)) / 86400000);
+}
+function numProtocolo(p) {
+  const m = p && p.match(/\d+/);
+  return m ? parseInt(m[0]) : 1;
+}
+const DIAS_PERIODO = { 'Trimestral': 84, 'Quadrimestral': 112, 'Semestral': 168, 'Anual': 336 };
+function totalProtocolos(contrato) {
+  return Math.ceil((DIAS_PERIODO[contrato] || 90) / (config.semanasProtocolo * 7));
+}
+function protocoloAtualNum(c) {
+  if (!c.inicio) return 1;
+  const dc = diasContrato(c.inicio);
+  const num = Math.floor(dc / (config.semanasProtocolo * 7)) + 1;
+  return Math.min(num, totalProtocolos(c.contrato));
+}
+function progProtocolo(c) {
+  if (!c.inicio) return 0;
+  const total = config.semanasProtocolo * 7;
+  const dc = diasContrato(c.inicio);
+  if (dc <= 0) return 0;
+  const ciclo = dc % total;
+  if (ciclo === 0 && dc >= total) return 100;
+  return Math.min(100, Math.round((ciclo / total) * 100));
+}
+function semanasDecorridas(inicio) {
+  return Math.floor(diasContrato(inicio) / 7);
+}
+function clientesParaAtualizar() {
+  return clientes.filter(c => {
+    if (!c.inicio || c.status_cliente !== 'Ativo') return false;
+    const total = config.semanasProtocolo * 7;
+    const ciclo = diasContrato(c.inicio) % total;
+    return ciclo >= (total - 7) && ciclo < total;
+  });
+}
+function clientesParaRenovar() {
+  return clientes.filter(c => {
+    const d = diasRestantes(c.fim);
+    return c.status_cliente === 'Ativo' && d >= 0 && d <= 30;
+  }).sort((a, b) => diasRestantes(a.fim) - diasRestantes(b.fim));
+}
+
+function corTreino(t) {
+  if (t === 'Em dia') return { bg: 'rgba(0,212,170,.12)', c: '#00d4aa' };
+  if (t === 'Em andamento') return { bg: 'rgba(251,146,60,.12)', c: '#fb923c' };
+  return { bg: 'rgba(255,107,107,.12)', c: '#ff6b6b' };
+}
+function corFoto(f) {
+  if (f === 'Em dia') return { bg: 'rgba(0,212,170,.12)', c: '#00d4aa' };
+  if (f === 'Pendentes') return { bg: 'rgba(255,211,61,.12)', c: '#ffd93d' };
+  return { bg: 'rgba(139,146,176,.12)', c: '#8b92b0' };
+}
+
+// ══════════════════════════════════════════════
+// RENDER: CLIENTES (CARDS)
+// ══════════════════════════════════════════════
+function renderClientes() {
+  const ativos = clientes.filter(c => c.status_cliente === 'Ativo');
+  document.getElementById('clientesSubtitle').textContent = `${ativos.length} clientes em acompanhamento`;
+  const grid = document.getElementById('clientesGrid');
+  if (ativos.length === 0) {
+    grid.innerHTML = '<div class="empty-state"><div class="icon">👥</div>Nenhum cliente ativo. Clique em "+ Novo Cliente" para adicionar.</div>';
+    return;
+  }
+  grid.innerHTML = ativos.map((c, i) => {
+    const [fg, bg] = cor(i);
+    const dias = diasRestantes(c.fim);
+    const prog = progProtocolo(c);
+    const urgente = dias >= 0 && dias <= 30;
+    const vencido = dias < 0;
+    const ct = corTreino(c.treino || '');
+    const cf = corFoto(c.fotos || '');
+    const diasLabel = vencido ? 'Vencido' : dias === 0 ? 'Hoje' : dias + 'd';
+    const diasColor = vencido ? '#ff6b6b' : urgente ? '#ffd93d' : '#00d4aa';
+    const diasBg = vencido ? 'rgba(255,107,107,.18)' : urgente ? 'rgba(255,211,61,.18)' : 'rgba(0,212,170,.15)';
+    const stCor = STATUS_COR[c.status_cliente || 'Ativo'];
+    const pAtual = protocoloAtualNum(c);
+    const pTotal = totalProtocolos(c.contrato);
+    return `<div class="contrato-card" onclick="openModal('${c.id}')" title="Clique para editar">
+      <div class="card-header">
+        <div class="card-header-bg" style="background:${fg}"></div>
+        <div class="contrato-avatar" style="background:${bg};color:${fg}">${initials(c.nome)}</div>
+        <div class="card-header-info">
+          <div class="contrato-name">${c.nome}</div>
+          <div class="contrato-prog">${c.programa || '—'}</div>
+          <div style="margin-top:5px"><span class="tag" style="background:${stCor.bg};color:${stCor.c};padding:2px 8px;font-size:10px">${c.status_cliente || 'Ativo'}</span></div>
+        </div>
+        <div class="card-dias-badge" style="background:${diasBg};color:${diasColor}">
+          <div style="font-size:9px;font-weight:600;opacity:.8">VENCE</div>
+          <div>${diasLabel}</div>
+        </div>
+      </div>
+      <div class="card-progress">
+        <div class="progress-label">
+          <span style="font-weight:700">Protocolo ${String(pAtual).padStart(2,'0')}/<span style="color:var(--text2)">${String(pTotal).padStart(2,'0')}</span></span>
+          <span style="color:${fg};font-weight:700">${prog}%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${prog}%;background:linear-gradient(90deg,${fg}99,${fg})"></div></div>
+      </div>
+      <div class="card-metrics">
+        <div class="card-metric"><div class="card-metric-label">Contrato</div><div class="card-metric-val" style="font-size:12px">${c.contrato || '—'}</div></div>
+        <div class="card-metric"><div class="card-metric-label">Valor</div><div class="card-metric-val" style="color:${fg};font-size:13px">R$${c.valor ? Number(c.valor).toLocaleString('pt-BR') : '—'}</div></div>
+        <div class="card-metric"><div class="card-metric-label">No contrato</div><div class="card-metric-val">${c.inicio ? diasContrato(c.inicio) + 'd' : '—'}</div></div>
+      </div>
+      <div class="card-footer">
+        ${c.treino ? `<span class="tag" style="background:${ct.bg};color:${ct.c}">🏋️ ${c.treino}</span>` : ''}
+        ${c.fotos ? `<span class="tag" style="background:${cf.bg};color:${cf.c}">📸 ${c.fotos}</span>` : ''}
+        ${c.sinal_verde ? `<span class="tag" style="background:rgba(0,212,170,.12);color:#00d4aa">✅ ${c.sinal_verde}</span>` : ''}
+        ${c.sinal_alerta ? `<span class="tag" style="background:rgba(255,107,107,.12);color:#ff6b6b">⚠️ ${c.sinal_alerta}</span>` : ''}
+        ${c.obs ? `<span class="tag" style="background:rgba(139,146,176,.1);color:var(--text2)" title="${c.obs}">💬 Obs</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// RENDER: TABELA GERAL
+// ══════════════════════════════════════════════
+function renderTabela() {
+  const filters = ['Todos', 'Ativo', 'Congelado', 'Encerrado', 'Cancelado'];
+  document.getElementById('tableFilters').innerHTML = filters.map(f =>
+    `<button class="filter-btn ${f === activeFilter ? 'active' : ''}" onclick="setFilter('${f}',this)">${f === 'Todos' ? 'Todos' : f + 's'}</button>`
+  ).join('');
+  renderTabelaBody(activeFilter);
+}
+
+function setFilter(f, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeFilter = f;
+  renderTabelaBody(f);
+}
+
+function filterTable(val) { renderTabelaBody(activeFilter, val); }
+
+function renderTabelaBody(filter, search = '') {
+  let rows = clientes.filter(c => filter === 'Todos' || c.status_cliente === filter);
+  if (search) rows = rows.filter(r => (r.nome || '').toLowerCase().includes(search.toLowerCase()));
+  document.getElementById('mainTableBody').innerHTML = rows.map((r, i) => {
+    const [fg, bg] = cor(i);
+    const st = r.status_cliente || 'Ativo';
+    const sc = STATUS_COR[st] || STATUS_COR['Ativo'];
+    const ct = corTreino(r.treino || '');
+    const cf = corFoto(r.fotos || '');
+    const opts = ['Ativo','Congelado','Encerrado','Cancelado'].map(s =>
+      `<option value="${s}" ${s === st ? 'selected' : ''}>${s}</option>`).join('');
+    return `<tr>
+      <td><div class="td-name"><div class="td-avatar" style="background:${bg};color:${fg}">${initials(r.nome)}</div>${r.nome}</div></td>
+      <td><select class="status-select" style="background:${sc.bg};color:${sc.c};border:none;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;outline:none;"
+        onchange="alterarStatus('${r.id}',this.value)">${opts}</select></td>
+      <td style="color:var(--text2);font-size:12px">${r.programa || '—'}</td>
+      <td style="color:var(--text2);font-size:12px">${r.protocolo || '—'}</td>
+      <td style="color:var(--text2);font-size:12px">${r.contrato || '—'}</td>
+      <td>${r.treino ? `<span class="foto-badge" style="background:${ct.bg};color:${ct.c}">${r.treino}</span>` : '—'}</td>
+      <td>${r.fotos ? `<span class="foto-badge" style="background:${cf.bg};color:${cf.c}">${r.fotos}</span>` : '—'}</td>
+      <td>
+        ${r.sinal_verde ? `<span style="font-size:11px;color:var(--green)">✅ ${r.sinal_verde}</span>` : ''}
+        ${r.sinal_alerta ? `<span style="font-size:11px;color:var(--red)">⚠️ ${r.sinal_alerta}</span>` : ''}
+      </td>
+      <td style="font-weight:600">${r.valor ? 'R$' + Number(r.valor).toLocaleString('pt-BR') : '—'}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="9"><div class="empty-state"><div class="icon">🔍</div>Nenhum resultado encontrado</div></td></tr>`;
+}
+
+async function alterarStatus(id, novoStatus) {
+  const { error } = await db.from('gc_clientes').update({ status_cliente: novoStatus }).eq('id', id);
+  if (error) { showToast('Erro ao atualizar status', 'error'); return; }
+  const c = clientes.find(x => x.id === id);
+  if (c) c.status_cliente = novoStatus;
+  renderClientes();
+  renderKPIs();
+}
+
+// ══════════════════════════════════════════════
+// RENDER: ALERTAS
+// ══════════════════════════════════════════════
+function renderAlertas() {
+  const comAlerta = clientes.filter(c => c.sinal_alerta && c.status_cliente === 'Ativo');
+  document.getElementById('alertNaoResp').textContent = comAlerta.filter(c => c.sinal_alerta === 'Não responde').length;
+  document.getElementById('alertInconsist').textContent = comAlerta.filter(c => c.sinal_alerta === 'Inconsistente').length;
+  document.getElementById('alertOutros').textContent = comAlerta.filter(c => !['Não responde','Inconsistente'].includes(c.sinal_alerta)).length;
+  document.getElementById('alertasTableBody').innerHTML = comAlerta.map((c, i) => {
+    const [fg, bg] = cor(i);
+    const ct = corTreino(c.treino);
+    const cf = corFoto(c.fotos);
+    return `<tr>
+      <td><div class="td-name"><div class="td-avatar" style="background:${bg};color:${fg}">${initials(c.nome)}</div>${c.nome}</div></td>
+      <td><span class="tag" style="background:rgba(255,107,107,.12);color:#ff6b6b">⚠️ ${c.sinal_alerta}</span></td>
+      <td style="font-size:12px;color:var(--text2)">${c.programa}</td>
+      <td style="font-size:12px;color:var(--text2)">${c.protocolo}</td>
+      <td><span class="foto-badge" style="background:${ct.bg};color:${ct.c}">${c.treino}</span></td>
+      <td><span class="foto-badge" style="background:${cf.bg};color:${cf.c}">${c.fotos}</span></td>
+      <td style="font-weight:600">${diasContrato(c.inicio)}d</td>
+      <td><button class="btn btn-outline" style="padding:5px 12px;font-size:11px" onclick="openModal('${c.id}')">✏️ Editar</button></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="8"><div class="empty-state"><div class="icon">✅</div>Nenhum alerta no momento</div></td></tr>`;
+}
+
+function renderAlertasDash() {
+  const alertas = clientes.filter(c => c.sinal_alerta && c.status_cliente === 'Ativo').slice(0, 4);
+  const verdes = clientes.filter(c => c.sinal_verde && c.status_cliente === 'Ativo').slice(0, 4);
+  document.getElementById('alertCount').textContent = `(${alertas.length})`;
+  document.getElementById('greenCount').textContent = `(${verdes.length})`;
+  document.getElementById('alertList').innerHTML = alertas.map((c, i) => {
+    const [fg, bg] = cor(i);
+    return `<div class="alert-item" onclick="openModal('${c.id}')">
+      <div class="alert-avatar" style="background:${bg};color:${fg}">${initials(c.nome)}</div>
+      <div class="alert-info"><div class="alert-name">${c.nome}</div><div class="alert-detail">${c.programa} · ${c.protocolo}</div></div>
+      <span class="alert-tag" style="background:rgba(255,107,107,.15);color:#ff6b6b">⚠️ ${c.sinal_alerta}</span>
+    </div>`;
+  }).join('') || '<div style="color:var(--text2);font-size:13px;padding:12px 0">Nenhum alerta</div>';
+  document.getElementById('greenList').innerHTML = verdes.map((c, i) => {
+    const [fg, bg] = cor(i + 5);
+    return `<div class="alert-item" onclick="openModal('${c.id}')">
+      <div class="alert-avatar" style="background:${bg};color:${fg}">${initials(c.nome)}</div>
+      <div class="alert-info"><div class="alert-name">${c.nome}</div><div class="alert-detail">${c.programa} · ${c.protocolo}</div></div>
+      <span class="alert-tag" style="background:rgba(0,212,170,.12);color:#00d4aa">✅ ${c.sinal_verde}</span>
+    </div>`;
+  }).join('') || '<div style="color:var(--text2);font-size:13px;padding:12px 0">Nenhum sinal verde</div>';
+  document.getElementById('notifDot').style.display = alertas.length > 0 ? 'inline-block' : 'none';
+}
+
+// ══════════════════════════════════════════════
+// RENDER: RENOVAÇÕES
+// ══════════════════════════════════════════════
+function renderRenovacoes() {
+  const prox = clientes.filter(c => c.status_cliente === 'Ativo' && diasRestantes(c.fim) <= 45)
+    .sort((a, b) => diasRestantes(a.fim) - diasRestantes(b.fim));
+  document.getElementById('renovacoesGrid').innerHTML = prox.map((c, i) => {
+    const [fg, bg] = cor(i);
+    const dias = diasRestantes(c.fim);
+    const urgente = dias < 15;
+    return `<div class="contrato-card" style="border-color:${urgente ? 'rgba(255,107,107,.4)' : 'var(--border)'}">
+      <div class="card-header">
+        <div class="card-header-bg" style="background:${fg}"></div>
+        <div class="contrato-avatar" style="background:${bg};color:${fg}">${initials(c.nome)}</div>
+        <div class="card-header-info">
+          <div class="contrato-name">${c.nome}</div>
+          <div class="contrato-prog">${c.programa}</div>
+        </div>
+        <div class="card-dias-badge" style="background:${urgente ? 'rgba(255,107,107,.18)' : 'rgba(255,211,61,.18)'};color:${urgente ? '#ff6b6b' : '#ffd93d'}">
+          <div style="font-size:9px;opacity:.8">VENCE</div>
+          <div>${dias > 0 ? dias + 'd' : 'Vencido'}</div>
+        </div>
+      </div>
+      <div class="contrato-stats">
+        <div class="contrato-stat"><div class="contrato-stat-label">Plano</div><div class="contrato-stat-val" style="font-size:11px">${c.contrato}</div></div>
+        <div class="contrato-stat"><div class="contrato-stat-label">Valor</div><div class="contrato-stat-val">R$${Number(c.valor).toLocaleString('pt-BR')}</div></div>
+        <div class="contrato-stat"><div class="contrato-stat-label">Sinal</div><div class="contrato-stat-val" style="font-size:11px;color:${c.sinal_verde ? 'var(--green)' : 'var(--red)'}">${c.sinal_verde || c.sinal_alerta || '—'}</div></div>
+        <div class="contrato-stat"><div class="contrato-stat-label">Protocolo</div><div class="contrato-stat-val" style="font-size:11px">${c.protocolo || '—'}</div></div>
+      </div>
+      <div style="margin:0 14px 14px;display:flex;gap:8px">
+        <button class="btn btn-outline" style="flex:1;padding:7px 0;font-size:12px" onclick="openModal('${c.id}')">✏️ Editar</button>
+        <button class="btn btn-primary" style="flex:1;padding:7px 0;font-size:12px">🔄 Renovar</button>
+      </div>
+    </div>`;
+  }).join('') || `<div class="empty-state"><div class="icon">✅</div>Nenhuma renovação nos próximos 45 dias</div>`;
+}
+
+// ══════════════════════════════════════════════
+// KPIs
+// ══════════════════════════════════════════════
+function renderKPIs() {
+  const ativos = clientes.filter(c => c.status_cliente === 'Ativo');
+  const encerrados = clientes.filter(c => c.status_cliente === 'Encerrado');
+  const faturamento = ativos.reduce((s, c) => s + (Number(c.valor) || 0), 0);
+  const renovacoes = clientesParaRenovar();
+  const protocolo = clientesParaAtualizar();
+
+  document.getElementById('kpiAtivos').textContent = ativos.length;
+  document.getElementById('kpiAtivosTotal').textContent = `${clientes.length} total cadastrados`;
+  document.getElementById('kpiFaturamento').textContent = 'R$' + faturamento.toLocaleString('pt-BR');
+  document.getElementById('kpiRenovacoesVal').textContent = renovacoes.length;
+  document.getElementById('kpiEncerradosVal').textContent = encerrados.length;
+  document.getElementById('kpiProtocoloVal').textContent = protocolo.length;
+
+  const now = new Date();
+  document.getElementById('dashSubtitle').textContent =
+    `Visão completa da sua consultoria · ${now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`;
+
+  document.getElementById('kpiRenovacoesCard').style.borderColor =
+    renovacoes.length > 0 ? 'rgba(255,107,107,.5)' : 'var(--border)';
+  document.getElementById('kpiProtocoloCard').style.borderColor =
+    protocolo.length > 0 ? 'rgba(167,139,250,.5)' : 'var(--border)';
+}
+
+// ══════════════════════════════════════════════
+// CHARTS
+// ══════════════════════════════════════════════
+Chart.defaults.color = '#8b92b0';
+Chart.defaults.borderColor = '#2e3350';
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+
+function destroyCharts() {
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch(e) {} });
+  charts = {};
+}
+
+function initCharts() {
+  destroyCharts();
+  const ativos = clientes.filter(c => c.status_cliente === 'Ativo');
+  const opts = { responsive: true, maintainAspectRatio: false };
+
+  const progs = {};
+  ativos.forEach(c => progs[c.programa || 'Sem programa'] = (progs[c.programa || 'Sem programa'] || 0) + 1);
+  const progKeys = Object.keys(progs);
+  const progVals = Object.values(progs);
+  const cores = ['#6c63ff','#00d4aa','#ffd93d','#4d9fff','#fb923c','#a78bfa','#f472b6'];
+
+  charts.programasBar = new Chart(document.getElementById('chartProgramasBar'), {
+    type: 'bar',
+    data: {
+      labels: progKeys,
+      datasets: [{ data: progVals, backgroundColor: cores.slice(0, progKeys.length), borderRadius: 8, borderSkipped: false }]
+    },
+    options: { ...opts, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: '#2e3350' }, beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+
+  charts.programas = new Chart(document.getElementById('chartProgramas'), {
+    type: 'doughnut',
+    data: { labels: progKeys, datasets: [{ data: progVals, backgroundColor: cores.slice(0, progKeys.length), borderWidth: 0, hoverOffset: 6 }] },
+    options: { ...opts, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 10 } } } }, cutout: '65%' }
+  });
+
+  const durs = {};
+  ativos.forEach(c => durs[c.contrato || '—'] = (durs[c.contrato || '—'] || 0) + 1);
+  charts.duracao = new Chart(document.getElementById('chartDuracao'), {
+    type: 'bar',
+    data: { labels: Object.keys(durs), datasets: [{ data: Object.values(durs), backgroundColor: ['#a78bfa','#4d9fff','#00d4aa','#ffd93d'], borderRadius: 8, borderSkipped: false }] },
+    options: { ...opts, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: '#2e3350' }, beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+
+  charts.treinos = new Chart(document.getElementById('chartTreinos'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Em dia', 'Em andamento', 'Desatualizado'],
+      datasets: [{ data: ['Em dia','Em andamento','Desatualizado'].map(t => ativos.filter(c => c.treino === t).length), backgroundColor: ['#00d4aa','#fb923c','#ff6b6b'], borderWidth: 0, hoverOffset: 6 }]
+    },
+    options: { ...opts, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 10 } } } }, cutout: '65%' }
+  });
+}
+
+// ══════════════════════════════════════════════
+// MODAL CLIENTE
+// ══════════════════════════════════════════════
+function openModal(id) {
+  modalClienteId = id || null;
+  atualizarSelectPrograma();
+  atualizarSelectPeriodo();
+  document.getElementById('modalOverlay').classList.add('open');
+  if (id) {
+    const c = clientes.find(x => x.id === id);
+    if (!c) return;
+    document.getElementById('modalTitleText').textContent = '✏️ Editar — ' + c.nome;
+    document.getElementById('f-nome').value = c.nome || '';
+    document.getElementById('f-whatsapp').value = c.whatsapp || '';
+    document.getElementById('f-instagram').value = c.instagram || '';
+    document.getElementById('f-nascimento').value = c.nascimento || '';
+    document.getElementById('f-status').value = c.status_cliente || 'Ativo';
+    document.getElementById('f-programa').value = c.programa || '';
+    document.getElementById('f-contrato').value = c.contrato || '';
+    document.getElementById('f-valor').value = c.valor || '';
+    document.getElementById('f-inicio').value = c.inicio || '';
+    document.getElementById('f-fim').value = c.fim || '';
+    document.getElementById('f-protocolo').value = c.protocolo || '';
+    document.getElementById('f-treino').value = c.treino || '';
+    document.getElementById('f-fotos').value = c.fotos || '';
+    document.getElementById('f-sinalVerde').value = c.sinal_verde || '';
+    document.getElementById('f-sinalAlerta').value = c.sinal_alerta || '';
+    document.getElementById('f-obs').value = c.obs || '';
+  } else {
+    document.getElementById('modalTitleText').textContent = '+ Novo Cadastro';
+    document.querySelectorAll('#modalOverlay .form-input, #modalOverlay .form-select, #modalOverlay .form-textarea').forEach(el => el.value = '');
+    document.getElementById('f-status').value = 'Ativo';
+    document.getElementById('f-treino').value = 'Em andamento';
+    document.getElementById('f-fotos').value = 'Pendentes';
+    document.getElementById('f-protocolo').value = 'Protocolo 01';
+  }
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+
+async function salvarCliente() {
+  const nome = document.getElementById('f-nome').value.trim();
+  if (!nome) { showToast('Informe o nome do cliente', 'error'); return; }
+
+  const dados = {
+    nome,
+    whatsapp:      document.getElementById('f-whatsapp').value,
+    instagram:     document.getElementById('f-instagram').value,
+    nascimento:    document.getElementById('f-nascimento').value || null,
+    status_cliente: document.getElementById('f-status').value,
+    programa:      document.getElementById('f-programa').value,
+    contrato:      document.getElementById('f-contrato').value,
+    valor:         parseFloat(document.getElementById('f-valor').value) || 0,
+    inicio:        document.getElementById('f-inicio').value || null,
+    fim:           document.getElementById('f-fim').value || null,
+    protocolo:     document.getElementById('f-protocolo').value,
+    treino:        document.getElementById('f-treino').value,
+    fotos:         document.getElementById('f-fotos').value,
+    sinal_verde:   document.getElementById('f-sinalVerde').value,
+    sinal_alerta:  document.getElementById('f-sinalAlerta').value,
+    obs:           document.getElementById('f-obs').value,
+  };
+
+  const btn = document.getElementById('btnSalvar');
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+
+  let error;
+  if (modalClienteId) {
+    ({ error } = await db.from('gc_clientes').update(dados).eq('id', modalClienteId));
+    if (!error) {
+      const idx = clientes.findIndex(x => x.id === modalClienteId);
+      if (idx >= 0) clientes[idx] = { ...clientes[idx], ...dados };
+    }
+  } else {
+    const { data, error: err } = await db.from('gc_clientes').insert(dados).select().single();
+    error = err;
+    if (!error && data) clientes.unshift(data);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Salvar';
+
+  if (error) { showToast('Erro ao salvar: ' + error.message, 'error'); return; }
+  showToast(modalClienteId ? 'Cliente atualizado!' : 'Cliente adicionado!');
+  closeModal();
+  renderAll();
+}
+
+// ══════════════════════════════════════════════
+// MODAL: ENCERRADOS
+// ══════════════════════════════════════════════
+function abrirModalEncerrados() {
+  const enc = clientes.filter(c => c.status_cliente === 'Encerrado');
+  const body = document.getElementById('modalEncerradosBody');
+  if (enc.length === 0) {
+    body.innerHTML = '<div class="empty-state"><div class="icon">📂</div>Nenhum ciclo encerrado.</div>';
+  } else {
+    body.innerHTML = `<table style="width:100%;border-collapse:collapse">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="padding:10px 12px;font-size:11px;color:var(--text2);text-align:left;text-transform:uppercase">Aluno</th>
+        <th style="padding:10px 12px;font-size:11px;color:var(--text2);text-align:left;text-transform:uppercase">Programa</th>
+        <th style="padding:10px 12px;font-size:11px;color:var(--text2);text-align:left;text-transform:uppercase">Duração</th>
+        <th style="padding:10px 12px;font-size:11px;color:var(--text2);text-align:left;text-transform:uppercase">Obs</th>
+        <th style="padding:10px 12px;font-size:11px;color:var(--text2);text-align:left;text-transform:uppercase">Ação</th>
+      </tr></thead>
+      <tbody>${enc.map((c, i) => {
+        const [fg, bg] = cor(i + 3);
+        return `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:12px"><div style="display:flex;align-items:center;gap:10px">
+            <div style="width:32px;height:32px;border-radius:50%;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px">${initials(c.nome)}</div>
+            <div style="font-weight:600;font-size:13px">${c.nome}</div>
+          </div></td>
+          <td style="padding:12px;font-size:12px;color:var(--text2)">${c.programa || '—'}</td>
+          <td style="padding:12px;font-size:12px;color:var(--text2)">${c.contrato || '—'}</td>
+          <td style="padding:12px;font-size:12px;color:var(--text2)">${c.obs || '—'}</td>
+          <td style="padding:12px"><button class="btn btn-primary" style="padding:5px 14px;font-size:11px" onclick="abrirReativacao('${c.id}')">⚡ Reativar</button></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+  }
+  document.getElementById('modalEncerradosOverlay').classList.add('open');
+}
+
+function abrirReativacao(id) {
+  const c = clientes.find(x => x.id === id);
+  if (!c) return;
+  const primeiro = c.nome.split(' ')[0];
+  const msg = `Olá, ${primeiro}! 👋\n\nTudo bem? Faz um tempo que encerramos nosso ciclo juntos, e queria passar aqui para saber como você está e como estão evoluindo seus resultados! 💪\n\nTenho pensado muito no seu progresso e acredito que teríamos muito ainda a conquistar juntos. Estamos com novidades nos programas e adoraria te contar sobre elas.\n\nQue tal marcarmos uma conversa rápida? Sem compromisso! 😊\n\nAguardo seu retorno!`;
+  document.getElementById('reat-nome').value = c.nome;
+  document.getElementById('reat-msg').value = msg;
+  reativacaoWhatsapp = c.whatsapp || '';
+  document.getElementById('copiadoFeedback').style.display = 'none';
+  document.getElementById('modalReativacaoOverlay').classList.add('open');
+}
+
+function copiarMensagem() {
+  navigator.clipboard.writeText(document.getElementById('reat-msg').value).then(() => {
+    const fb = document.getElementById('copiadoFeedback');
+    fb.style.display = 'block';
+    setTimeout(() => fb.style.display = 'none', 2500);
+  });
+}
+
+function abrirWhatsapp() {
+  const msg = encodeURIComponent(document.getElementById('reat-msg').value);
+  const tel = reativacaoWhatsapp.replace(/\D/g, '');
+  window.open(tel ? `https://wa.me/55${tel}?text=${msg}` : `https://wa.me/?text=${msg}`, '_blank');
+}
+
+// ══════════════════════════════════════════════
+// MODAL: RENOVAÇÕES
+// ══════════════════════════════════════════════
+function abrirModalRenovacoes() {
+  const lista = clientesParaRenovar();
+  const body = document.getElementById('modalRenovacoesBody');
+  if (lista.length === 0) {
+    body.innerHTML = '<div class="empty-state"><div class="icon">✅</div>Nenhum contrato vencendo nos próximos 30 dias.</div>';
+  } else {
+    body.innerHTML = `<p style="color:var(--text2);font-size:12.5px;margin-bottom:16px">${lista.length} contrato${lista.length > 1 ? 's vencendo' : ' vencendo'} em até 30 dias.</p>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="padding:10px;font-size:11px;color:var(--text2);text-align:left;text-transform:uppercase">Aluno</th>
+        <th style="padding:10px;font-size:11px;color:var(--text2);text-align:left;text-transform:uppercase">Programa</th>
+        <th style="padding:10px;font-size:11px;color:var(--text2);text-align:left;text-transform:uppercase">Vence em</th>
+        <th style="padding:10px;font-size:11px;color:var(--text2);text-align:left;text-transform:uppercase">Valor</th>
+      </tr></thead>
+      <tbody>${lista.map((c, i) => {
+        const [fg, bg] = cor(i);
+        const dias = diasRestantes(c.fim);
+        const urg = dias <= 7;
+        return `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:12px"><div style="display:flex;align-items:center;gap:10px">
+            <div style="width:32px;height:32px;border-radius:50%;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px">${initials(c.nome)}</div>
+            <div><div style="font-weight:600;font-size:13px">${c.nome}</div><div style="font-size:11px;color:var(--text2)">${c.sinal_verde ? '✅ ' + c.sinal_verde : c.sinal_alerta ? '⚠️ ' + c.sinal_alerta : ''}</div></div>
+          </div></td>
+          <td style="padding:12px;font-size:12px;color:var(--text2)">${c.programa}</td>
+          <td style="padding:12px"><span style="background:${urg ? 'rgba(255,107,107,.15)' : 'rgba(255,211,61,.12)'};color:${urg ? '#ff6b6b' : '#ffd93d'};padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700">${dias === 0 ? 'Hoje!' : dias + 'd'}</span></td>
+          <td style="padding:12px;font-size:13px;font-weight:600">R$${Number(c.valor).toLocaleString('pt-BR')}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+  }
+  document.getElementById('modalRenovacoesOverlay').classList.add('open');
+}
+
+// ══════════════════════════════════════════════
+// MODAL: PROTOCOLO
+// ══════════════════════════════════════════════
+function abrirModalProtocolo() {
+  const lista = clientesParaAtualizar();
+  const body = document.getElementById('modalProtocoloBody');
+  if (lista.length === 0) {
+    body.innerHTML = '<div class="empty-state"><div class="icon">✅</div>Nenhum aluno precisa trocar de protocolo esta semana.</div>';
+  } else {
+    body.innerHTML = `<p style="color:var(--text2);font-size:12.5px;margin-bottom:16px">${lista.length} aluno${lista.length > 1 ? 's precisam' : ' precisa'} trocar de protocolo esta semana.</p>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="padding:10px;font-size:11px;color:var(--text2);text-align:left;text-transform:uppercase">Aluno</th>
+        <th style="padding:10px;font-size:11px;color:var(--text2);text-align:left;text-transform:uppercase">Protocolo Atual</th>
+        <th style="padding:10px;font-size:11px;color:var(--text2);text-align:left;text-transform:uppercase">Próximo</th>
+        <th style="padding:10px;font-size:11px;color:var(--text2);text-align:left;text-transform:uppercase">Semanas</th>
+      </tr></thead>
+      <tbody>${lista.map((c, i) => {
+        const [fg, bg] = cor(i);
+        const proxNum = Math.min(numProtocolo(c.protocolo) + 1, 6);
+        return `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:12px"><div style="display:flex;align-items:center;gap:10px">
+            <div style="width:32px;height:32px;border-radius:50%;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px">${initials(c.nome)}</div>
+            <div><div style="font-weight:600;font-size:13px">${c.nome}</div><div style="font-size:11px;color:var(--text2)">${c.programa}</div></div>
+          </div></td>
+          <td style="padding:12px;font-size:13px;color:var(--text2)">${c.protocolo}</td>
+          <td style="padding:12px"><span style="background:rgba(167,139,250,.15);color:#a78bfa;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700">Protocolo ${String(proxNum).padStart(2,'0')}</span></td>
+          <td style="padding:12px;font-size:13px;color:var(--text2)">${semanasDecorridas(c.inicio)}sem</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+  }
+  document.getElementById('modalProtocoloOverlay').classList.add('open');
+}
+
+// ══════════════════════════════════════════════
+// CONFIGURAÇÕES
+// ══════════════════════════════════════════════
+async function setSemanas(n, btn) {
+  config.semanasProtocolo = n;
+  document.querySelectorAll('.semanas-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('configInfo').textContent =
+    `✅ Cada protocolo dura ${n} semana${n > 1 ? 's' : ''} (${n * 7} dias). A troca é sinalizada nos últimos 7 dias do ciclo.`;
+  await db.from('gc_config').upsert({ chave: 'semanas_protocolo', valor: String(n) }, { onConflict: 'chave' });
+  renderClientes();
+  renderKPIs();
+}
+
+function renderListaConfig(tipo) {
+  const id = tipo === 'programa' ? 'programasList' : 'periodosList';
+  const arr = tipo === 'programa' ? config.programas : config.periodos;
+  document.getElementById(id).innerHTML = arr.map((item, i) =>
+    `<span class="config-tag">${item}<span class="config-tag-del" onclick="removerItem('${tipo}',${i})">✕</span></span>`
+  ).join('');
+}
+
+async function adicionarPrograma() {
+  const inp = document.getElementById('novoPrograma');
+  const val = inp.value.trim();
+  if (!val || config.programas.includes(val)) return;
+  config.programas.push(val);
+  await salvarConfig('programas', config.programas);
+  atualizarSelectPrograma();
+  renderListaConfig('programa');
+  inp.value = '';
+}
+
+async function adicionarPeriodo() {
+  const inp = document.getElementById('novoPeriodo');
+  const val = inp.value.trim();
+  if (!val || config.periodos.includes(val)) return;
+  config.periodos.push(val);
+  await salvarConfig('periodos', config.periodos);
+  atualizarSelectPeriodo();
+  renderListaConfig('periodo');
+  inp.value = '';
+}
+
+async function removerItem(tipo, idx) {
+  if (tipo === 'programa') {
+    config.programas.splice(idx, 1);
+    await salvarConfig('programas', config.programas);
+    atualizarSelectPrograma();
+    renderListaConfig('programa');
+  } else {
+    config.periodos.splice(idx, 1);
+    await salvarConfig('periodos', config.periodos);
+    atualizarSelectPeriodo();
+    renderListaConfig('periodo');
+  }
+}
+
+async function salvarConfig(chave, valor) {
+  await db.from('gc_config').upsert({ chave, valor: JSON.stringify(valor) }, { onConflict: 'chave' });
+}
+
+function atualizarSelectPrograma() {
+  const sel = document.getElementById('f-programa');
+  const cur = sel.value;
+  sel.innerHTML = config.programas.map(p => `<option>${p}</option>`).join('');
+  if (config.programas.includes(cur)) sel.value = cur;
+}
+
+function atualizarSelectPeriodo() {
+  const sel = document.getElementById('f-contrato');
+  const cur = sel.value;
+  sel.innerHTML = config.periodos.map(p => `<option>${p}</option>`).join('');
+  if (config.periodos.includes(cur)) sel.value = cur;
+}
+
+function renderConfig() {
+  document.querySelectorAll('.semanas-btn').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.textContent) === config.semanasProtocolo);
+  });
+  document.getElementById('configInfo').textContent =
+    `✅ Cada protocolo dura ${config.semanasProtocolo} semana${config.semanasProtocolo > 1 ? 's' : ''} (${config.semanasProtocolo * 7} dias). A troca é sinalizada nos últimos 7 dias do ciclo.`;
+  renderListaConfig('programa');
+  renderListaConfig('periodo');
+}
+
+// ══════════════════════════════════════════════
+// RENDER ALL
+// ══════════════════════════════════════════════
+function renderAll() {
+  renderKPIs();
+  renderClientes();
+  renderTabela();
+  renderAlertas();
+  renderAlertasDash();
+  renderRenovacoes();
+  initCharts();
+}
+
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+async function init() {
+  setLoading(true);
+  try {
+    // Carregar config
+    const { data: cfgData } = await db.from('gc_config').select('*');
+    if (cfgData) {
+      cfgData.forEach(row => {
+        if (row.chave === 'semanas_protocolo') config.semanasProtocolo = parseInt(row.valor) || 4;
+        if (row.chave === 'programas') try { config.programas = JSON.parse(row.valor); } catch(e) {}
+        if (row.chave === 'periodos') try { config.periodos = JSON.parse(row.valor); } catch(e) {}
+      });
+    }
+
+    // Carregar clientes
+    const { data: clientesData, error } = await db.from('gc_clientes').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    clientes = clientesData || [];
+
+    atualizarSelectPrograma();
+    atualizarSelectPeriodo();
+    renderConfig();
+    renderAll();
+  } catch (e) {
+    showToast('Erro ao carregar dados: ' + e.message, 'error');
+    console.error(e);
+  } finally {
+    setLoading(false);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
