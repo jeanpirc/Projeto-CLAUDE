@@ -3,17 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gestão de Clientes</title>
+<title>J.Pierre · Gestão de Clientes</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
-    --bg: #0f1117; --bg2: #1a1d27; --bg3: #22263a; --border: #2e3350;
-    --accent: #6c63ff; --accent2: #00d4aa; --accent3: #ff6b6b; --accent4: #ffd93d;
-    --text: #e8eaf0; --text2: #8b92b0;
-    --green: #00d4aa; --red: #ff6b6b; --yellow: #ffd93d;
+    --bg: #0a0d0a; --bg2: #111811; --bg3: #1a211a; --border: #243024;
+    --accent: #6DC919; --accent2: #4DB500; --accent3: #ff6b6b; --accent4: #ffd93d;
+    --text: #e8eaf0; --text2: #8b9e8b;
+    --green: #6DC919; --red: #ff6b6b; --yellow: #ffd93d;
     --blue: #4d9fff; --purple: #a78bfa; --orange: #fb923c;
-    --radius: 14px; --shadow: 0 4px 24px rgba(0,0,0,0.35);
+    --radius: 14px; --shadow: 0 4px 24px rgba(0,0,0,0.5);
+    --grad: linear-gradient(135deg, #A8E63D, #4DB500);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -30,10 +31,10 @@
     display: flex; align-items: center; gap: 10px; padding: 9px 20px; cursor: pointer;
     font-size: 13.5px; color: var(--text2); border-radius: 8px; margin: 1px 8px; transition: all .18s;
   }
-  .nav-item:hover, .nav-item.active { background: rgba(108,99,255,.15); color: var(--accent); }
+  .nav-item:hover, .nav-item.active { background: rgba(109,201,25,.12); color: var(--accent); }
   .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
   .sidebar-footer { margin-top: auto; padding: 16px 20px; font-size: 12px; color: var(--text2); border-top: 1px solid var(--border); }
-  .sidebar-footer .avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; margin-right: 10px; }
+  .sidebar-footer .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--grad); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #111; margin-right: 10px; }
   .sidebar-footer .user { display: flex; align-items: center; }
 
   .main { margin-left: 230px; padding: 32px 36px; max-width: 1400px; }
@@ -42,8 +43,8 @@
   .page-subtitle { color: var(--text2); font-size: 13.5px; margin-top: 4px; }
   .header-actions { display: flex; gap: 10px; }
   .btn { padding: 9px 18px; border-radius: 9px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all .18s; }
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: #5a52e0; }
+  .btn-primary { background: var(--grad); color: #111; font-weight: 700; }
+  .btn-primary:hover { filter: brightness(1.1); }
   .btn-outline { background: transparent; color: var(--text2); border: 1px solid var(--border); }
   .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
 
@@ -70,7 +71,7 @@
   .kpi-badge.up { background: rgba(0,212,170,.15); color: var(--green); }
   .kpi-badge.down { background: rgba(255,107,107,.15); color: var(--red); }
   .kpi-card.clickable { cursor: pointer; }
-  .kpi-card.clickable:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(108,99,255,.2); }
+  .kpi-card.clickable:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(109,201,25,.15); }
 
   .charts-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-bottom: 28px; }
   .chart-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
@@ -121,7 +122,7 @@
   .table-title { font-size: 14px; font-weight: 700; }
   .table-filters { display: flex; gap: 8px; }
   .filter-btn { padding: 5px 13px; border-radius: 20px; font-size: 11.5px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text2); transition: all .15s; }
-  .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .filter-btn.active { background: var(--grad); color: #111; border-color: var(--accent); font-weight: 700; }
   .filter-btn:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
   table { width: 100%; border-collapse: collapse; }
   thead th { padding: 12px 16px; font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; text-align: left; background: var(--bg3); border-bottom: 1px solid var(--border); }
@@ -184,7 +185,7 @@
   .config-section-desc { font-size: 12.5px; color: var(--text2); margin-bottom: 18px; line-height: 1.5; }
   .semanas-toggle { display: flex; gap: 10px; margin-bottom: 14px; }
   .semanas-btn { padding: 10px 28px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; border: 2px solid var(--border); background: var(--bg3); color: var(--text2); transition: all .18s; }
-  .semanas-btn.active { border-color: var(--accent); background: rgba(108,99,255,.15); color: var(--accent); }
+  .semanas-btn.active { border-color: var(--accent); background: rgba(109,201,25,.12); color: var(--accent); }
   .config-info { font-size: 12px; color: var(--text2); padding: 10px 14px; background: var(--bg3); border-radius: 8px; }
   .config-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; min-height: 36px; }
   .config-tag { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); font-size: 13px; font-weight: 600; }
@@ -219,10 +220,10 @@
   .login-input:focus { border-color: var(--accent); }
   .login-btn {
     width: 100%; padding: 13px; border-radius: 10px; font-size: 14px; font-weight: 700;
-    background: var(--accent); color: #fff; border: none; cursor: pointer;
-    margin-top: 8px; transition: background .18s;
+    background: var(--grad); color: #111; border: none; cursor: pointer;
+    margin-top: 8px; transition: filter .18s;
   }
-  .login-btn:hover { background: #5a52e0; }
+  .login-btn:hover { filter: brightness(1.1); }
   .login-btn:disabled { opacity: .6; cursor: not-allowed; }
   .login-error { font-size: 12px; color: var(--red); text-align: center; margin-top: 12px; min-height: 18px; }
   .app-wrap { display: none; }
@@ -234,9 +235,20 @@
 <!-- LOGIN -->
 <div class="login-overlay show" id="loginOverlay">
   <div class="login-box">
-    <div class="login-logo">💪</div>
-    <div class="login-title">ConsultoriaPRO</div>
-    <div class="login-sub">Painel de Gestão de Clientes</div>
+    <div class="login-logo">
+      <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="gLogo" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#A8E63D"/>
+            <stop offset="100%" style="stop-color:#4DB500"/>
+          </linearGradient>
+        </defs>
+        <circle cx="32" cy="32" r="30" fill="#0a0d0a" stroke="url(#gLogo)" stroke-width="2.5"/>
+        <text x="32" y="42" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-weight="900" font-size="26" letter-spacing="-1" fill="url(#gLogo)">JP</text>
+      </svg>
+    </div>
+    <div class="login-title">J.Pierre</div>
+    <div class="login-sub">Soluções em Treino · Gestão de Clientes</div>
     <div class="login-group">
       <label class="login-label">Email</label>
       <input class="login-input" id="login-email" type="email" placeholder="seu@email.com" autocomplete="username">
@@ -265,7 +277,22 @@
 
 <!-- SIDEBAR -->
 <nav class="sidebar">
-  <div class="sidebar-logo"><span>💪</span> ConsultoriaPRO</div>
+  <div class="sidebar-logo">
+    <svg width="32" height="32" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
+      <defs>
+        <linearGradient id="gSide" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#A8E63D"/>
+          <stop offset="100%" style="stop-color:#4DB500"/>
+        </linearGradient>
+      </defs>
+      <circle cx="32" cy="32" r="30" fill="#0a0d0a" stroke="url(#gSide)" stroke-width="2.5"/>
+      <text x="32" y="42" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-weight="900" font-size="26" letter-spacing="-1" fill="url(#gSide)">JP</text>
+    </svg>
+    <div>
+      <div style="font-size:14px;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.2">J.Pierre</div>
+      <div style="font-size:9px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;-webkit-text-fill-color:var(--text2)">Soluções em Treino</div>
+    </div>
+  </div>
   <div class="nav-section">Principal</div>
   <div class="nav-item active" onclick="showView('dashboard')"><span class="icon">📊</span> Dashboard</div>
   <div class="nav-item" onclick="showView('clientes')"><span class="icon">✅</span> Clientes Ativos</div>
@@ -277,10 +304,10 @@
   <div class="nav-item" onclick="showView('config')"><span class="icon">⚙️</span> Configurações</div>
   <div class="sidebar-footer">
     <div class="user" style="margin-bottom:12px">
-      <div class="avatar">C</div>
+      <div class="avatar">JP</div>
       <div>
-        <div style="font-weight:600;font-size:13px;color:var(--text)">ConsultoriaPRO</div>
-        <div style="font-size:11px" id="userEmail">Painel de Gestão</div>
+        <div style="font-weight:700;font-size:12px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent">J.Pierre</div>
+        <div style="font-size:10px;color:var(--text2)" id="userEmail">Painel de Gestão</div>
       </div>
     </div>
     <button onclick="fazerLogout()" style="width:100%;padding:8px;border-radius:8px;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.25);color:#ff6b6b;font-size:12px;font-weight:600;cursor:pointer;transition:all .18s;" onmouseover="this.style.background='rgba(255,107,107,.2)'" onmouseout="this.style.background='rgba(255,107,107,.1)'">
@@ -753,7 +780,7 @@ function renderClientes() {
     const stCor = STATUS_COR[c.status_cliente || 'Ativo'];
     const pAtual = protocoloAtualNum(c);
     const pTotal = totalProtocolos(c.contrato);
-    return `<div class="contrato-card" onclick="openModal('${c.id}')" title="Clique para editar">
+    return `<div class="contrato-card" onclick="openModal('${c.id}')" title="Clique para editar" style="border-color:#243024">
       <div class="card-header">
         <div class="card-header-bg" style="background:${fg}"></div>
         <div class="contrato-avatar" style="background:${bg};color:${fg}">${initials(c.nome)}</div>
@@ -964,8 +991,8 @@ function renderKPIs() {
 // ══════════════════════════════════════════════
 // CHARTS
 // ══════════════════════════════════════════════
-Chart.defaults.color = '#8b92b0';
-Chart.defaults.borderColor = '#2e3350';
+Chart.defaults.color = '#8b9e8b';
+Chart.defaults.borderColor = '#243024';
 Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
 
 function destroyCharts() {
@@ -982,7 +1009,7 @@ function initCharts() {
   ativos.forEach(c => progs[c.programa || 'Sem programa'] = (progs[c.programa || 'Sem programa'] || 0) + 1);
   const progKeys = Object.keys(progs);
   const progVals = Object.values(progs);
-  const cores = ['#6c63ff','#00d4aa','#ffd93d','#4d9fff','#fb923c','#a78bfa','#f472b6'];
+  const cores = ['#6DC919','#A8E63D','#4DB500','#ffd93d','#fb923c','#4d9fff','#a78bfa'];
 
   charts.programasBar = new Chart(document.getElementById('chartProgramasBar'), {
     type: 'bar',
